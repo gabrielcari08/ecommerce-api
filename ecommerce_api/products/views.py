@@ -35,6 +35,20 @@ def list_products(request):
         #The customer users can see only the active products
         products = Product.objects.filter(is_active=True) 
         
+            
+    #Filter by category if "category_id" is provided in query parameters
+    category_id = request.GET.get('category_id')
+    if category_id:
+        products = products.filter(category__id=category_id)
+    
+    #Filter by price range if "min_price" and/or "max_price" are provided in query parameters
+    min_price = request.GET.get('min_price')
+    max_price = request.GET.get('max_price')
+    if min_price:
+        products = products.filter(price__gte=min_price)
+    if max_price:
+        products = products.filter(price__lte=max_price)
+        
     serializer = ProductListSerializer(products, many=True)
     
     return Response({'products': serializer.data}, status=status.HTTP_200_OK)
