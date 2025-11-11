@@ -27,7 +27,13 @@ def list_categories(request):
 @permission_classes([AllowAny]) #No authentication required
 def list_products(request):
 
-    products = Product.objects.filter(is_active=True) 
+    #Verify that user is authenticated and admin.
+    if request.user.is_authenticated and hasattr(request.user, 'user_type') and request.user.user_type == 'admin':
+        #The admin can see all te products
+        products = Product.objects.all()
+    else:
+        #The customer users can see only the active products
+        products = Product.objects.filter(is_active=True) 
         
     serializer = ProductListSerializer(products, many=True)
     

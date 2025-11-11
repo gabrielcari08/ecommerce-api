@@ -12,7 +12,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Product
-        fields = ['id', 'name', 'category_name', 'price', 'created_at']
+        fields = ['id', 'name', 'category_name', 'is_active', 'price', 'created_at']
         read_only_fields = ['id', 'created_at'] #Protect the auto-generated fields
         
 class ProductDetailSerializer(serializers.ModelSerializer):
