@@ -35,6 +35,13 @@ def add_to_cart(request):
     product_id = serializer.validated_data['product_id'] #For example, product_id = 5
     quantity = serializer.validated_data['quantity'] #For example, quantity = 2
 
+    #Verify stock availability
+    if quantity > 100: #Assuming each product has a stock of 100 for simplicity
+        return Response(
+            {"detail": "Cantidad solicitada excede el stock disponible."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
     #Vefify product
     try:
         product = Product.objects.get(id=product_id, is_active=True)
@@ -52,13 +59,6 @@ def add_to_cart(request):
     if not created:
         cart_item.quantity += quantity 
         cart_item.save()
-    
-    #Verify stock availability
-    if quantity > 100: #Assuming each product has a stock of 100 for simplicity
-        return Response(
-            {"detail": "Cantidad solicitada excede el stock disponible."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
     
     #Serialize updated cart
     cart_serializer = CartSerializer(cart)
@@ -174,7 +174,7 @@ def cart_summary(request):
     cart, created = Cart.objects.get_or_create(user=request.user)
     
     return Response({
-        "total_items": cart.total_items(),
-        "total_price": cart.total_price(),
+        "total_items": cart.total_items,
+        "total_price": cart.total_price,
         "items_count": cart.cartitem_set.count()
     })
