@@ -4,6 +4,8 @@
 
 # Python
 __pycache__/
+*.py[cod]
+*$py.class
 *.pyc
 *.pyo
 *.pyd
@@ -11,6 +13,9 @@ __pycache__/
 env/
 venv/
 .venv/
+env.bak/
+venv.bak/
+*.so
 
 # Django
 *.log
@@ -19,11 +24,18 @@ db.sqlite3
 media/
 staticfiles/
 
+# Testing and Coverage
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+.DS_Store
 
 # Docker
 docker/postgres_data/
