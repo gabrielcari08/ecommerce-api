@@ -3,8 +3,11 @@ from django.db import models
 # Create your models here.
 
 class Category(models.Model):
-    name = models.CharField(max_length=255) #The name of the category
+    name = models.CharField(max_length=255, unique=True) #The name of the category
 
+    def __str__(self):
+        return self.name
+    
     class Meta:
         db_table = 'categories' #The name of the table in the database
         verbose_name = 'Categories' #The name of the category in the admin panel. 
@@ -17,6 +20,9 @@ class Product(models.Model):
     created_at = models.DateTimeField(auto_now_add=True) 
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     #on_delete=models.SET_NULL: when the category is deleted, the field become NULL.
+    
+    def __str__(self):
+        return self.name
 
     class Meta:
         db_table = 'products' #The name of the table in the database
