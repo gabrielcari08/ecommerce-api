@@ -20,6 +20,11 @@ class Order(models.Model):
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
         ('refunded', 'Refunded'),
+        ('return_requested', 'Return Requested'), #New status
+        ('returned', 'Returned'), #New status
+        
+        #'return_requested': when the user requests a return for the order.
+        #'returned': when the order has been returned and the return process is complete.
     )
     
     #The user who placed the order
@@ -54,7 +59,16 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     #The date and time when the order was last updated
     updated_at = models.DateTimeField(auto_now=True)
-
+    
+    #New field for return reason
+    return_reason = models.TextField(blank=True, null=True) 
+    #New field for return request date
+    return_requested_at = models.DateTimeField(blank=True, null=True)
+    #New field for returned date
+    returned_at = models.DateTimeField(blank=True, null=True) 
+    #New field for refunded date
+    refunded_at = models.DateTimeField(blank=True, null=True) 
+    
     def save(self, *args, **kwargs):
         if not self.order_number:
             self.order_number = self.generate_order_number()

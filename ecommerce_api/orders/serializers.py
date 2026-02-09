@@ -20,5 +20,9 @@ class OrderSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'items']
 
         read_only_fields = ['order_number', 'created_at', 'updated_at']
-
+        
+class CancelOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ['return_reason']
         
