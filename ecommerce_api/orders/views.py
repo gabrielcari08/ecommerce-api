@@ -8,8 +8,29 @@ from rest_framework import status
 from carts.models import Cart
 from .models import Order, OrderItem
 from .serializers import OrderSerializer, CancelOrderSerializer
+from products.views import IsAdminUser
 
 # Create your views here.
+
+#This function validates if the status transition is valid
+def validate_status_transition(current_status, new_status):
+    
+        #Valid transitions dictionary
+        valid_transitions = {
+            'pending': ['confirmed', 'cancelled'],
+            'confirmed': ['processing', 'cancelled'],
+            'processing': ['shipped', 'cancelled'],
+            'shipped': ['delivered', 'cancelled'],
+            'delivered': ['return_requested'],
+            'cancelled': [],
+            'refunded': [],
+            'return_requested': ['returned', 'refunded'],
+            'returned': []
+        }
+        
+        #Return true if the new status is in the valid transitions for the current status,
+        # otherwise return false
+        return new_status in valid_transitions.get(current_status, [])
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -113,6 +134,30 @@ def get_order_detail(request, order_id):
     serializer = OrderSerializer(order)
     return Response(serializer.data)    
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def order_summary(request):
+    
+    #Get de user orders
+    orders = Order.objects.filter(user=request.user)
+    
+    #Response
+    return Response({
+        "total_orders": orders.count(),
+        "orders_by_status": {
+            "pending": orders.filter(status='pending').count(),
+            "confirmed": orders.filter(status='confirmed').count(),
+            "processing": orders.filter(status='processing').count(),
+            "shipped": orders.filter(status='shipped').count(),
+            "delivered": orders.filter(status='delivered').count(),
+            "cancelled": orders.filter(status='cancelled').count(),
+            "refunded": orders.filter(status='refunded').count(),
+            },
+        "total_spent": sum(order.total_amount for order in orders),
+        "average_order_value": sum(order.total_amount for order in orders) / orders.count() 
+        if orders.count() > 0 else 0,
+        "recent_orders": OrderSerializer(orders.order_by('-created_at')[:5], many=True).data
+    })
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -158,28 +203,57 @@ def cancel_order(request, order_id):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def update_order_status(request, order_id):
+        
+    #Get the order by "order_id"
+    #If not found, return 404 error
+    order = get_object_or_404(Order, id=order_id)
     
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def order_summary(request):
+    #Get the new status from the request data
+    new_status = request.data.get('status')
     
-    #Get de user orders
-    orders = Order.objects.filter(user=request.user)
+    #Validate that the new status is provided in the request data
+    if not new_status:
+        return Response(
+            {"message": "El nuevo estado es requerido."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
     
-    #Response
-    return Response({
-        "total_orders": orders.count(),
-        "orders_by_status": {
-            "pending": orders.filter(status='pending').count(),
-            "confirmed": orders.filter(status='confirmed').count(),
-            "processing": orders.filter(status='processing').count(),
-            "shipped": orders.filter(status='shipped').count(),
-            "delivered": orders.filter(status='delivered').count(),
-            "cancelled": orders.filter(status='cancelled').count(),
-            "refunded": orders.filter(status='refunded').count(),
+    #Validate that the new status is valid
+    if new_status not in dict(Order.STATUS_CHOICES):
+        return Response(
+            {"message": "Estado de orden inválido."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    #Validate that the status transition is valid
+    if not validate_status_transition(order.status, new_status):
+        #If the function returns False, the transition is not valid
+        return Response(
+            {"message": f"Transición de estado no válida."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    #But, the function returns True continue with the code.
+
+    try:
+        #Update the order status
+        order.status = new_status
+        #Save the order
+        order.save()
+        
+        return Response(
+            {"message": "Estado de orden actualizado exitosamente."},
+            status=status.HTTP_200_OK
+        )
+    
+    except Exception as e:
+        return Response(
+            {
+                "message": "Error al actualizar el estado de la orden", 
+                "error": str(e)
             },
-        "total_spent": sum(order.total_amount for order in orders),
-        "average_order_value": sum(order.total_amount for order in orders) / orders.count() 
-        if orders.count() > 0 else 0,
-        "recent_orders": OrderSerializer(orders.order_by('-created_at')[:5], many=True).data
-    })
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
