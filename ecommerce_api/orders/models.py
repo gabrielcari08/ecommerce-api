@@ -68,6 +68,8 @@ class Order(models.Model):
     returned_at = models.DateTimeField(blank=True, null=True) 
     #New field for refunded date
     refunded_at = models.DateTimeField(blank=True, null=True) 
+    #New field for delivery date
+    delivered_at = models.DateTimeField(blank=True, null=True)
     
     def save(self, *args, **kwargs):
         if not self.order_number:

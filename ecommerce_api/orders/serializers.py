@@ -26,3 +26,7 @@ class CancelOrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = ['return_reason']
         
+class ReturnOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ['return_reason']

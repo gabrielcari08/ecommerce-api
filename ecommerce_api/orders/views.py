@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from carts.models import Cart
 from .models import Order, OrderItem
-from .serializers import OrderSerializer, CancelOrderSerializer
+from .serializers import OrderSerializer, CancelOrderSerializer, ReturnOrderSerializer
 from products.views import IsAdminUser
 
 # Create your views here.
@@ -253,6 +253,111 @@ def update_order_status(request, order_id):
         return Response(
             {
                 "message": "Error al actualizar el estado de la orden", 
+                "error": str(e)
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+        
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
+def request_return(request, order_id):
+    
+    #Get the order by "order_id" and verify that the order belongs to the user
+    #If not found, return 404 error
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    
+    #Verify that the order is delivered
+    if order.status != 'delivered':
+        return Response(
+            {"message": "Solo se pueden solicitar devoluciones para órdenes entregadas."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+        
+    #Verify that the order is in 30 days since the delivery date
+    if order.delivered_at < timezone.now() - timezone.timedelta(days=30):
+        return Response(
+            {"message": "El período para solicitar una devolución ha expirado."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    #Verify that the order is not already in return requested status
+    if order.status == "return_requested":
+        return Response(
+            {"message": "Ya se ha solicitado una devolución para esta orden."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    #Verify that the order is not already returned or refunded
+    if order.status == "returned" or order.status == "refunded":
+        return Response(
+            {"message": "Esta orden ya ha sido devuelta o reembolsada."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    #Validate the serializer data
+    serializer = ReturnOrderSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {"message": "Datos de devolución inválidos", "errors": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        #Set the return reason
+        order.return_reason = request.data.get('return_reason')
+        #Set the return requested date
+        order.return_requested_at = timezone.now()
+        #Update the order status to "return_requested"
+        order.status = 'return_requested'
+        #Save the order
+        order.save()
+        
+        return Response(
+            {"message": "Solicitud de devolución enviada exitosamente."},
+            status=status.HTTP_200_OK
+        )
+    
+    except Exception as e:
+        return Response(
+            {
+                "message": "Error al solicitar la devolución",
+                "error": str(e)
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+        
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def mark_order_as_delivered(request, order_id):
+    #Get the order by "order_id"
+    #If not found, return 404 error
+    order = get_object_or_404(Order, id=order_id)
+    
+    #Verify that the order is shipped
+    if order.status != 'shipped':
+        return Response(
+            {"message": "Solo se pueden marcar como entregadas las órdenes que han sido enviadas."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    try:
+        #Update the order status to "delivered"
+        order.status = 'delivered'
+        #Set the delivered date
+        order.delivered_at = timezone.now()
+        #Save the order
+        order.save()
+        
+        return Response(
+            {"message": "Orden marcada como entregada exitosamente."},
+            status=status.HTTP_200_OK
+        )
+    
+    except Exception as e:
+        return Response(
+            {
+                "message": "Error al marcar la orden como entregada", 
                 "error": str(e)
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
