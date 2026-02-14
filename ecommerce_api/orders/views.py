@@ -171,6 +171,13 @@ def cancel_order(request, order_id):
              status=status.HTTP_400_BAD_REQUEST
             )
         
+    #The order can be cancelled, only in 24 hours since the order was created
+    if order.created_at < timezone.now() - timezone.timedelta(hours=24):
+        return Response(
+            {"message": "El período para cancelar la orden ha expirado."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+        
     #Validate the serializer data
     serializer = CancelOrderSerializer(data=request.data)
     if not serializer.is_valid():
@@ -362,3 +369,57 @@ def mark_order_as_delivered(request, order_id):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+        
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_shipping_address(request, order_id):
+    #Get the order by "order_id" and verify that the order belongs to the user
+    #If not found, return 404 error
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    
+    #Verify that the order is not already shipped, delivered, cancelled or refunded
+    if order.status in ['shipped', 'delivered', 'cancelled', 'refunded']:
+        return Response(
+            {"message": "No se puede actualizar la dirección de envío de una orden que ya ha sido enviada, entregada, cancelada o reembolsada."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    #Get the new shipping address from the request data
+    new_shipping_address = request.data.get('shipping_address')
+    
+    #Validate that the new shipping address is provided in the request data
+    if not new_shipping_address:
+        return Response(
+            {"message": "La nueva dirección de envío es requerida."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    try:
+        #Update the shipping address of the order
+        order.shipping_address = new_shipping_address
+        #Save the order
+        order.save()
+        
+        return Response(
+            {"message": "Dirección de envío actualizada exitosamente."},
+            status=status.HTTP_200_OK
+        )
+    
+    except Exception as e:
+        return Response(
+            {
+                "message": "Error al actualizar la dirección de envío", 
+                "error": str(e)
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+        
+        
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def admin_order_list(request):
+    #Get all orders
+    orders = Order.objects.all()
+    #Serialize the orders
+    serializer = OrderSerializer(orders, many=True)
+    return Response(serializer.data)

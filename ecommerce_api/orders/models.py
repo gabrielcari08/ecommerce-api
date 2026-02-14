@@ -48,7 +48,9 @@ class Order(models.Model):
     #The shipping address of the order
     shipping_address = models.JSONField(default=dict)
     #The billing address of the order
-    billing_address = models.JSONField(default=dict)
+    #billing_address = models.JSONField(default=dict) -> Deleted 
+    
+    #billing_address was deleted because we can use the same address for shipping and billing.
     
     #The shipping method of the order
     shipping_method = models.CharField(max_length=20, default='standard')
