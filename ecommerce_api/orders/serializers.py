@@ -24,9 +24,31 @@ class OrderSerializer(serializers.ModelSerializer):
 class CancelOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
-        fields = ['return_reason']
+        fields = ['cancellation_reason']
         
 class ReturnOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = ['return_reason']
+        
+class ProcessReturnSerializer(serializers.Serializer):
+    
+    ACTION_CHOICES = (
+        ('approve', 'Approve Return'),
+        ('reject', 'Reject Return'),
+    )
+    
+    action = serializers.ChoiceField(choices=ACTION_CHOICES)
+    rejection_reason = serializers.CharField(required=False, allow_blank=True)
+    
+    #Validate that if action is 'reject', then rejection_reason must be provided
+    def validate(self, data):
+        action = data.get('action')
+        rejection_reason = data.get('rejection_reason')
+        
+        if action == 'reject' and not rejection_reason:
+            raise serializers.ValidationError(
+                "El motivo de rechazo es obligatorio cuando se rechaza una devolución."
+                )
+        
+        return data

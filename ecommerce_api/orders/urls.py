@@ -12,4 +12,5 @@ urlpatterns = [
     path('mark_as_delivered/<int:order_id>/', views.mark_order_as_delivered, name='mark_as_delivered'),
     path('update_shipping_address/<int:order_id>/', views.update_shipping_address, name='update_shipping_info'),
     path('admin_order_list/', views.admin_order_list, name='admin_order_list'),
+    path('process_return/<int:order_id>/', views.process_return, name='process_return'),
 ]

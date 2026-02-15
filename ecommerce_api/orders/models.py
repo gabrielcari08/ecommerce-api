@@ -72,6 +72,8 @@ class Order(models.Model):
     refunded_at = models.DateTimeField(blank=True, null=True) 
     #New field for delivery date
     delivered_at = models.DateTimeField(blank=True, null=True)
+    #New field for cancellation reason
+    cancellation_reason = models.TextField(blank=True, null=True)
     
     def save(self, *args, **kwargs):
         if not self.order_number:

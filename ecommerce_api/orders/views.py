@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from carts.models import Cart
 from .models import Order, OrderItem
-from .serializers import OrderSerializer, CancelOrderSerializer, ReturnOrderSerializer
+from .serializers import OrderSerializer, CancelOrderSerializer, ReturnOrderSerializer, ProcessReturnSerializer
 from products.views import IsAdminUser
 
 # Create your views here.
@@ -20,7 +20,7 @@ def validate_status_transition(current_status, new_status):
             'pending': ['confirmed', 'cancelled'],
             'confirmed': ['processing', 'cancelled'],
             'processing': ['shipped', 'cancelled'],
-            'shipped': ['delivered', 'cancelled'],
+            'shipped': ['cancelled'],
             'delivered': ['return_requested'],
             'cancelled': [],
             'refunded': [],
@@ -59,13 +59,6 @@ def create_order_from_cart(request):
             {"message": "La dirección de envío es requerida"},
              status=status.HTTP_400_BAD_REQUEST
             )
-    
-    #Validate that the billing address is provided in the request data
-    if not request.data.get('billing_address'):
-        return Response(
-            {"message": "La dirección de facturación es requerida"},
-             status=status.HTTP_400_BAD_REQUEST
-            )
 
     try:
         #Create an order
@@ -75,7 +68,6 @@ def create_order_from_cart(request):
             subtotal=cart.total_price,
             total_amount=cart.total_price,
             shipping_address=request.data.get('shipping_address', {}),
-            billing_address=request.data.get('billing_address', {}),
         )
 
         #Convert cart items
@@ -187,9 +179,9 @@ def cancel_order(request, order_id):
         )
         
     try:
-        #Set the return reason
-        order.return_reason = request.data.get('return_reason')
-        #Set the return requested date
+        #Set the cancellation reason
+        order.cancellation_reason = request.data.get('cancellation_reason')
+        #Set the cancellation requested date
         order.return_requested_at = timezone.now()
         #Cancel the order
         order.status = 'cancelled'
@@ -285,6 +277,13 @@ def request_return(request, order_id):
     if order.delivered_at < timezone.now() - timezone.timedelta(days=30):
         return Response(
             {"message": "El período para solicitar una devolución ha expirado."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+        
+    #Verify that user give 'return_reason' in the request data
+    if not request.data.get('return_reason'):
+        return Response(
+            {"message": "El motivo de devolución es requerido."},
              status=status.HTTP_400_BAD_REQUEST
             )
     
@@ -423,3 +422,65 @@ def admin_order_list(request):
     #Serialize the orders
     serializer = OrderSerializer(orders, many=True)
     return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def process_return(request, order_id):
+    #Get the order by "order_id"
+    #If not found, return 404 error
+    order = get_object_or_404(Order, id=order_id)
+    
+    #Verify that the order is in return requested status
+    if order.status != "return_requested":
+        return Response(
+            {"message": "Solo se pueden procesar devoluciones para órdenes con estado 'return_requested'."},
+             status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    #Validate the serializer data
+    serializer = ProcessReturnSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {"message": "Datos de procesamiento de devolución inválidos", "errors": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    action = serializer.validated_data['action']
+    rejection_reason = serializer.validated_data.get('rejection_reason', '')
+    
+    try:
+        if action == 'approve':
+            #Update the order status to "returned"
+            order.status = 'returned'
+            #Set the returned date
+            order.returned_at = timezone.now()
+            #Save the order
+            order.save()
+            
+            return Response(
+                {"message": "Devolución aprobada exitosamente."},
+                status=status.HTTP_200_OK
+            )
+        
+        elif action == 'reject':
+            #Update the order status back to "delivered"
+            order.status = 'delivered'
+            #Set the rejection reason
+            order.return_reason = rejection_reason
+            #Save the order
+            order.save()
+            
+            return Response(
+                {"message": "Devolución rechazada exitosamente."},
+                status=status.HTTP_200_OK
+            )
+    
+    except Exception as e:
+        return Response(
+            {
+                "message": "Error al procesar la devolución", 
+                "error": str(e)
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
